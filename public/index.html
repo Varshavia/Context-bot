@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Context Bot - Dev</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: #e0e0e0; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .window-item { background: #2a2a2a; margin: 8px 0; padding: 12px; border-radius: 6px; border-left: 4px solid #007acc; font-size: 13px; }
+        .snapshot-card { background: #1e1e1e; border: 1px solid #333; padding: 15px; margin-top: 15px; border-radius: 8px; border-left: 4px solid #28a745; }
+        button { background: #007acc; color: white; border: none; padding: 10px 20px; cursor: pointer; border-radius: 6px; font-weight: bold; transition: 0.2s; }
+        button:hover { opacity: 0.8; }
+        .restore-btn { background: #28a745; padding: 6px 12px; font-size: 12px; margin-right: 8px; }
+        .delete-btn { background: #dc3545; padding: 6px 12px; font-size: 12px; }
+        input { padding: 10px; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; width: 250px; margin-right: 10px; }
+        .section-title { color: #007acc; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="root"></div>
+    </div>
+
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const React = window.React;
+        const ReactDOM = window.ReactDOM;
+
+        function App() {
+            const [windows, setWindows] = React.useState([]);
+            const [snapshotName, setSnapshotName] = React.useState('');
+            const [savedSnapshots, setSavedSnapshots] = React.useState([]);
+
+            React.useEffect(() => {
+                // Uygulama açıldığında diskteki verileri otomatik yükle
+                ipcRenderer.send('load-snapshots');
+
+                // Tarama sonuçlarını dinle
+                ipcRenderer.on('scan-results', (event, results) => {
+                    setWindows(results);
+                });
+
+                // Kayıt listesini güncelle (Kayıt, Silme veya Yükleme sonrası)
+                ipcRenderer.on('snapshot-saved', (event, snapshots) => {
+                    setSavedSnapshots(snapshots);
+                });
+            }, []);
+
+            const handleScan = () => ipcRenderer.send('scan-windows');
+            
+            const handleSave = () => {
+                if (!snapshotName) return alert("Lütfen bir isim girin!");
+                ipcRenderer.send('save-snapshot', { name: snapshotName });
+                setSnapshotName('');
+            };
+
+            const handleRestore = (id) => ipcRenderer.send('restore-snapshot', id);
+
+            const handleDelete = (id) => {
+                if(confirm("Bu bağlamı silmek istediğine emin misin?")) {
+                    ipcRenderer.send('delete-snapshot', id);
+                }
+            };
+
+            return React.createElement('div', null, [
+                React.createElement('h1', null, 'Context Bot 🤖'),
+                
+                // Kontrol Paneli
+                React.createElement('div', { style: { marginBottom: '20px' } }, [
+                    React.createElement('button', { onClick: handleScan }, 'Pencereleri Tara'),
+                    windows.length > 0 && React.createElement('div', { style: { marginTop: '15px' } }, [
+                        React.createElement('input', { 
+                            placeholder: 'Snapshot Adı (Örn: Ödev Başlangıcı)', 
+                            value: snapshotName,
+                            onChange: (e) => setSnapshotName(e.target.value)
+                        }),
+                        React.createElement('button', { onClick: handleSave, style: { background: '#28a745' } }, 'Snapshot Al')
+                    ])
+                ]),
+
+                // Mevcut Liste
+                windows.length > 0 && React.createElement('div', null, [
+                    React.createElement('h3', { className: 'section-title' }, 'Tespit Edilen Pencereler ve Sekmeler'),
+                    windows.map((win, i) => React.createElement('div', { key: i, className: 'window-item' }, win))
+                ]),
+
+                // Kayıtlı Snapshotlar
+                savedSnapshots.length > 0 && React.createElement('div', null, [
+                    React.createElement('h3', { className: 'section-title' }, 'Kaydedilmiş Snapshotlar'),
+                    savedSnapshots.map((snap, i) => React.createElement('div', { key: i, className: 'snapshot-card' }, [
+                        React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } }, [
+                            React.createElement('div', null, [
+                                React.createElement('div', { style: { fontWeight: 'bold', fontSize: '16px' } }, snap.name),
+                                React.createElement('div', { style: { fontSize: '12px', color: '#888' } }, snap.timestamp)
+                            ]),
+                            React.createElement('div', null, [
+                                React.createElement('button', { 
+                                    className: 'restore-btn',
+                                    onClick: () => handleRestore(snap.id) 
+                                }, 'Geri Yükle ⚡'),
+                                React.createElement('button', { 
+                                    className: 'delete-btn',
+                                    onClick: () => handleDelete(snap.id) 
+                                }, 'Sil 🗑️')
+                            ])
+                        ]),
+                        React.createElement('div', { style: { marginTop: '8px', fontSize: '13px', color: '#bbb' } }, 
+                            snap.chromeTabs ? `${snap.chromeTabs.length} tarayıcı sekmesi kayıtlı.` : "Pencere bilgisi kayıtlı."
+                        )
+                    ]))
+                ])
+            ]);
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
+    </script>
+</body>
+</html>

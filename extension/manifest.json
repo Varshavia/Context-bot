@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Context Bot Bridge",
+  "version": "1.0",
+  "description": "Açık sekmeleri Context Bot uygulamasına gönderir.",
+  "permissions": ["tabs"],
+  "background": {
+    "service_worker": "background.js"
+  }
+}

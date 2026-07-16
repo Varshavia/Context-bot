@@ -63,5 +63,5 @@ You need to load the `extension` folder into Chrome for the app to read browser 
 
 ## ⚠️ Compatibility
 
-Currently, it works with full performance only on the **Windows** operating system. (Mac/Linux support is under development).
+Full performance (and the most testing) is on **Windows**. Basic OS window scanning is also implemented for **macOS** (via `osascript`/AppleScript) and **Linux** (via `wmctrl` — install it with e.g. `sudo apt install wmctrl` if it's missing). Chrome tab tracking works the same on all platforms. Mac/Linux support is newer and less battle-tested than Windows, so feedback/issues are welcome.
 

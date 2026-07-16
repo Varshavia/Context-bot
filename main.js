@@ -42,22 +42,59 @@ ipcMain.on('load-snapshots', (event) => {
     }
 });
 
-// 1. Tarama Motoru
-ipcMain.on('scan-windows', (event) => {
-    const cmd = `powershell "Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object -ExpandProperty MainWindowTitle"`;
-    
-    exec(cmd, { maxBuffer: 1024 * 1024 }, (err, stdout) => {
-        let osWindows = [];
-        if (!err && stdout) {
-            osWindows = stdout.split('\r\n')
+// 1. Tarama Motoru (platforma göre pencere/uygulama tarama komutu seçilir)
+function getOsWindowTitles(callback) {
+    if (process.platform === 'win32') {
+        const cmd = `powershell "Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object -ExpandProperty MainWindowTitle"`;
+        exec(cmd, { maxBuffer: 1024 * 1024 }, (err, stdout) => {
+            if (err || !stdout) return callback([]);
+            callback(stdout.split('\r\n').map(line => line.trim()).filter(Boolean));
+        });
+        return;
+    }
+
+    if (process.platform === 'darwin') {
+        const cmd = `osascript -e 'tell application "System Events" to get name of every process whose visible is true'`;
+        exec(cmd, { maxBuffer: 1024 * 1024 }, (err, stdout) => {
+            if (err || !stdout) return callback([]);
+            // AppleScript comma-separated list, e.g. "Finder, Safari, Terminal"
+            callback(stdout.split(',').map(line => line.trim()).filter(Boolean));
+        });
+        return;
+    }
+
+    if (process.platform === 'linux') {
+        // Requires wmctrl (apt install wmctrl / dnf install wmctrl). If it's not
+        // installed we degrade gracefully to just the Chrome tabs instead of crashing.
+        exec('wmctrl -l', { maxBuffer: 1024 * 1024 }, (err, stdout) => {
+            if (err || !stdout) {
+                console.warn("Linux pencere taraması için 'wmctrl' bulunamadı ya da çalıştırılamadı. Kurmak için: sudo apt install wmctrl");
+                return callback([]);
+            }
+            // wmctrl -l columns: <window id> <desktop> <client machine> <title...>
+            const titles = stdout.split('\n')
                 .map(line => line.trim())
-                .filter(line => line && line.length > 2 && !line.includes("Google Chrome") && !line.includes("Context Bot"));
-        }
+                .filter(Boolean)
+                .map(line => line.split(/\s+/).slice(3).join(' ').trim())
+                .filter(Boolean);
+            callback(titles);
+        });
+        return;
+    }
+
+    // Unknown platform: no OS-level window scanning available.
+    callback([]);
+}
+
+ipcMain.on('scan-windows', (event) => {
+    getOsWindowTitles((rawTitles) => {
+        const osWindows = rawTitles
+            .filter(line => line && line.length > 2 && !line.includes("Google Chrome") && !line.includes("Context Bot"));
 
         // Arayüzde listelemek için sadece başlıkları gönderiyoruz
         const formattedTabs = chromeTabsDetail.map(tab => `[Chrome] ${tab.title}`);
         const finalResults = [...new Set([...osWindows, ...formattedTabs])];
-        
+
         event.reply('scan-results', finalResults);
     });
 });

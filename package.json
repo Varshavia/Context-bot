@@ -33,6 +33,7 @@
     },
     "files": [
       "main.js",
+      "preload.js",
       "public/**/*",
       "node_modules/**/*"
     ],

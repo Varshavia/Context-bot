@@ -25,7 +25,6 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
 
     <script>
-        const { ipcRenderer } = require('electron');
         const React = window.React;
         const ReactDOM = window.ReactDOM;
 
@@ -36,32 +35,32 @@
 
             React.useEffect(() => {
                 // Uygulama açıldığında diskteki verileri otomatik yükle
-                ipcRenderer.send('load-snapshots');
+                window.contextBot.loadSnapshots();
 
                 // Tarama sonuçlarını dinle
-                ipcRenderer.on('scan-results', (event, results) => {
+                window.contextBot.onScanResults((results) => {
                     setWindows(results);
                 });
 
                 // Kayıt listesini güncelle (Kayıt, Silme veya Yükleme sonrası)
-                ipcRenderer.on('snapshot-saved', (event, snapshots) => {
+                window.contextBot.onSnapshotSaved((snapshots) => {
                     setSavedSnapshots(snapshots);
                 });
             }, []);
 
-            const handleScan = () => ipcRenderer.send('scan-windows');
-            
+            const handleScan = () => window.contextBot.scanWindows();
+
             const handleSave = () => {
                 if (!snapshotName) return alert("Lütfen bir isim girin!");
-                ipcRenderer.send('save-snapshot', { name: snapshotName });
+                window.contextBot.saveSnapshot(snapshotName);
                 setSnapshotName('');
             };
 
-            const handleRestore = (id) => ipcRenderer.send('restore-snapshot', id);
+            const handleRestore = (id) => window.contextBot.restoreSnapshot(id);
 
             const handleDelete = (id) => {
                 if(confirm("Bu bağlamı silmek istediğine emin misin?")) {
-                    ipcRenderer.send('delete-snapshot', id);
+                    window.contextBot.deleteSnapshot(id);
                 }
             };
 

@@ -102,7 +102,20 @@ ipcMain.on('restore-snapshot', (event, snapshotId) => {
 
 ipcMain.on('delete-snapshot', (event, snapshotId) => {
     const filePath = path.join(app.getPath('userData'), 'snapshots.json');
-    let snapshots = JSON.parse(fs.readFileSync(filePath));
+    if (!fs.existsSync(filePath)) {
+        event.reply('snapshot-saved', []);
+        return;
+    }
+
+    let snapshots = [];
+    try {
+        snapshots = JSON.parse(fs.readFileSync(filePath));
+    } catch (e) {
+        console.error("Snapshot dosyası okunamadı:", e);
+        event.reply('snapshot-saved', []);
+        return;
+    }
+
     snapshots = snapshots.filter(s => s.id !== snapshotId);
     fs.writeFileSync(filePath, JSON.stringify(snapshots, null, 2));
     event.reply('snapshot-saved', snapshots);

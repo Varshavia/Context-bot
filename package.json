@@ -1,7 +1,7 @@
 {
   "name": "context-bot",
-  "version": "1.0.0",
-  "description": "An OS-level context switcher for developers.",
+  "version": "1.1.0",
+  "description": "An OS-level context switcher for developers. Saves open windows and Chrome tabs as snapshots and restores them on demand.",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
@@ -34,6 +34,7 @@
     "files": [
       "main.js",
       "preload.js",
+      "src/**/*",
       "public/**/*",
       "node_modules/**/*"
     ],

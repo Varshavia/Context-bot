@@ -3,7 +3,7 @@ node_modules/
 jspm_packages/
 web_modules/
 
-# --- Build Output (Önemli: exe ve derlenmiş dosyalar gitmemeli) ---
+# --- Build Output (compiled binaries and installers must not be committed) ---
 dist/
 build/
 out/
@@ -11,7 +11,7 @@ out/
 .nuxt/
 .vuepress/dist
 
-# --- Environment Variables (GÜVENLİK İÇİN ÇOK ÖNEMLİ) ---
+# --- Environment Variables (critical for security) ---
 .env
 .env.*
 !.env.example
@@ -24,7 +24,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# --- Runtime Data & User Data (Kişisel verilerin gitmemesi için) ---
+# --- Runtime Data & User Data (keep personal data out of the repo) ---
 pids
 *.pid
 *.seed
@@ -37,13 +37,13 @@ coverage
 .nyc_output
 lib-cov
 
-# --- IDE & Editor Configs (Kişisel ayarların gitmemesi için) ---
+# --- IDE & Editor Configs (keep personal settings out of the repo) ---
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# --- Operating System Files (Mac ve Windows çöp dosyaları) ---
+# --- Operating System Files (macOS and Windows junk files) ---
 .DS_Store
 .DS_Store?
 ._*

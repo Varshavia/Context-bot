@@ -10,8 +10,9 @@
 
 * **Smart Scanning:** Automatically detects open system windows and Google Chrome tabs (GitHub, StackOverflow, etc.).
 * **Snapshot Recording:** Save your current workspace state by naming it (e.g., "Algorithm Homework", "Project X").
-* **One-Click Restore:** Automatically re-opens your saved tabs with their specific URLs, even if the browser was closed.
-* **Persistent Memory:** Your data remains saved even after the application is closed.
+* **One-Click Restore:** Re-opens your saved tabs directly inside Chrome via the extension. If the extension is not connected, tabs open in your default browser as a fallback.
+* **Live Connection Status:** The app shows whether the Chrome extension is currently connected.
+* **Persistent Memory:** Snapshots are stored on disk (with atomic writes) and survive app restarts.
 * **Management:** Easily delete old or unnecessary records.
 
 ## 🚀 Installation (For End Users)
@@ -57,9 +58,29 @@ You need to load the `extension` folder into Chrome for the app to read browser 
 ## 🏗 Technologies Used
 
 * **Electron.js:** For the desktop application.
-* **React:** For the user interface.
+* **React (UMD, no build step):** For the user interface — bundled locally under `public/vendor`, no CDN required.
 * **WebSocket (ws):** For communication with the Chrome extension.
-* **PowerShell:** For Windows window management.
+* **PowerShell / AppleScript / wmctrl:** For OS window scanning on Windows / macOS / Linux.
+
+## 📁 Project Structure
+
+```
+main.js                  Electron main process: lifecycle + IPC wiring
+preload.js               contextBridge API exposed to the renderer
+src/extension-bridge.js  WebSocket server for the Chrome extension
+src/snapshot-store.js    Snapshot persistence (async, atomic writes)
+src/window-scanner.js    Cross-platform OS window scanning
+public/                  Renderer (index.html, renderer.js, styles.css, vendor React)
+extension/               Chrome MV3 extension (tab reporting + restore)
+```
+
+## 🔌 WebSocket Protocol
+
+The app and the extension exchange JSON messages over `ws://localhost:8080`:
+
+* Extension → App: `{ "type": "tabs", "payload": [{ "title", "url" }] }` — sent whenever tabs change.
+* Extension → App: `{ "type": "ping" }` — keepalive (also keeps the MV3 service worker alive).
+* App → Extension: `{ "type": "open-tabs", "payload": { "urls": [...] } }` — restore command; the extension opens each URL as a background tab. Only `http(s)` URLs are ever restored.
 
 ## ⚠️ Compatibility
 

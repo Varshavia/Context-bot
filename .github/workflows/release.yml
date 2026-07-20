@@ -18,6 +18,8 @@ permissions:
 jobs:
   release:
     strategy:
+      # Keep building the other platforms even if one of them fails.
+      fail-fast: false
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
 

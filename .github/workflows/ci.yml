@@ -1,0 +1,36 @@
+# Lightweight sanity checks on every push and pull request:
+# validates that dependencies install cleanly and all source files parse.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax-check source files
+        run: |
+          for f in main.js preload.js src/*.js public/renderer.js extension/background.js; do
+            node --check "$f"
+          done
+
+      - name: Validate JSON files
+        run: node -e "['package.json','extension/manifest.json'].forEach(f => JSON.parse(require('fs').readFileSync(f)))"

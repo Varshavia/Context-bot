@@ -47,7 +47,7 @@ class ExtensionBridge {
             if (err.code === 'EADDRINUSE') {
                 console.error(
                     `[bridge] Port ${this.port} is already in use. ` +
-                    'Is another instance of Context Bot running?'
+                        'Is another instance of Context Bot running?',
                 );
             } else {
                 console.error('[bridge] WebSocket server error:', err);

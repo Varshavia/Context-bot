@@ -37,7 +37,10 @@ async function scanWindowsPlatform() {
         'powershell "Get-Process | Where-Object {$_.MainWindowTitle} | ' +
         'Select-Object -ExpandProperty MainWindowTitle"';
     const stdout = await run(cmd);
-    return stdout.split('\r\n').map((line) => line.trim()).filter(Boolean);
+    return stdout
+        .split('\r\n')
+        .map((line) => line.trim())
+        .filter(Boolean);
 }
 
 async function scanMacOsPlatform() {
@@ -46,7 +49,10 @@ async function scanMacOsPlatform() {
         `get name of every process whose visible is true'`;
     const stdout = await run(cmd);
     // AppleScript returns a comma-separated list, e.g. "Finder, Safari, Terminal".
-    return stdout.split(',').map((line) => line.trim()).filter(Boolean);
+    return stdout
+        .split(',')
+        .map((line) => line.trim())
+        .filter(Boolean);
 }
 
 async function scanLinuxPlatform() {
@@ -56,7 +62,7 @@ async function scanLinuxPlatform() {
     if (!stdout) {
         console.warn(
             "[scanner] 'wmctrl' not found or failed. " +
-            'Install it for Linux window scanning: sudo apt install wmctrl'
+                'Install it for Linux window scanning: sudo apt install wmctrl',
         );
         return [];
     }
@@ -94,7 +100,7 @@ async function getOsWindowTitles() {
     const filtered = titles.filter(
         (title) =>
             title.length > 2 &&
-            !IGNORED_TITLE_PATTERNS.some((pattern) => title.includes(pattern))
+            !IGNORED_TITLE_PATTERNS.some((pattern) => title.includes(pattern)),
     );
     return [...new Set(filtered)];
 }

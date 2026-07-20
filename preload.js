@@ -34,8 +34,6 @@ contextBridge.exposeInMainWorld('contextBot', {
 
     /** Subscribes to live extension connect/disconnect events. */
     onExtensionStatus: (callback) => {
-        ipcRenderer.on('extension:status', (_event, connected) =>
-            callback(connected)
-        );
+        ipcRenderer.on('extension:status', (_event, connected) => callback(connected));
     },
 });

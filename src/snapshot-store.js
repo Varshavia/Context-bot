@@ -50,7 +50,9 @@ class SnapshotStore {
      * @returns {Promise<Array<object>>} The updated snapshot list.
      */
     async add({ name, osWindows = [], chromeTabs = [] }) {
-        const trimmed = String(name || '').trim().slice(0, MAX_NAME_LENGTH);
+        const trimmed = String(name || '')
+            .trim()
+            .slice(0, MAX_NAME_LENGTH);
         if (!trimmed) {
             throw new Error('Snapshot name must not be empty.');
         }

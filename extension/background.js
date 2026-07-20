@@ -31,7 +31,7 @@ function connect() {
 
     try {
         socket = new WebSocket(SERVER_URL);
-    } catch (err) {
+    } catch {
         scheduleReconnect();
         return;
     }
@@ -90,7 +90,7 @@ function handleServerMessage(raw) {
 
     if (message.type === 'open-tabs' && message.payload) {
         const urls = (message.payload.urls || []).filter((url) =>
-            SAFE_URL_PATTERN.test(url)
+            SAFE_URL_PATTERN.test(url),
         );
         console.log(`[bridge] Restoring ${urls.length} tabs`);
         for (const url of urls) {

@@ -65,6 +65,9 @@ function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1000,
         height: 700,
+        // Windows/macOS take the app icon from the installer bundle; Linux
+        // needs it set explicitly for the window/taskbar icon.
+        icon: path.join(__dirname, 'assets', 'icon.png'),
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,

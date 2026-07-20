@@ -58,6 +58,7 @@
       "preload.js",
       "src/**/*",
       "public/**/*",
+      "assets/**/*",
       "node_modules/**/*"
     ],
     "asar": true

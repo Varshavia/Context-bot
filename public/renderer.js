@@ -101,7 +101,7 @@ function App() {
 
     return e('div', null, [
         e('div', { className: 'header', key: 'header' }, [
-            e('h1', { key: 'title' }, 'Context Bot 🤖'),
+            e('h1', { key: 'title' }, 'Context Bot'),
             e(StatusBadge, { connected: extensionConnected, key: 'badge' }),
         ]),
 
@@ -172,7 +172,7 @@ function App() {
                                         onClick: () => handleRestore(snapshot),
                                         key: 'restore',
                                     },
-                                    'Restore ⚡'
+                                    'Restore'
                                 ),
                                 e(
                                     'button',
@@ -181,7 +181,7 @@ function App() {
                                         onClick: () => handleDelete(snapshot),
                                         key: 'delete',
                                     },
-                                    'Delete 🗑️'
+                                    'Delete'
                                 ),
                             ]),
                         ]),

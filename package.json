@@ -6,8 +6,10 @@
   "scripts": {
     "start": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "electron:build": "electron-builder",
-    "dist": "electron-builder" 
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
   },
   "repository": {
     "type": "git",
@@ -18,7 +20,10 @@
     "productivity",
     "context-switcher"
   ],
-  "author": "Yusuf Suat Babacan",
+  "author": {
+    "name": "Yusuf Suat Babacan",
+    "email": "yusufsuat2002@gmail.com"
+  },
   "license": "ISC",
   "type": "commonjs",
   "build": {
@@ -27,6 +32,23 @@
     "win": {
       "target": "nsis",
       "icon": "public/icon.ico"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.productivity"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png",
+      "category": "Utility",
+      "maintainer": "Yusuf Suat Babacan <yusufsuat2002@gmail.com>"
     },
     "directories": {
       "output": "dist"

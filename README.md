@@ -2,9 +2,16 @@
 
 **Context Bot** is an open-source context management tool for developers. It saves your active workspace windows and Chrome tabs as a snapshot and restores them with a single click whenever you want.
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![Built With](https://img.shields.io/badge/built%20with-Electron%20%2B%20React-61DAFB)
+![CI](https://github.com/Varshavia/Context-bot/actions/workflows/ci.yml/badge.svg)
+
+<!-- Add a screenshot of the main window here:
+## Screenshot
+
+![Context Bot main window](docs/screenshot.png)
+-->
 
 ## Features
 
@@ -13,6 +20,7 @@
 * **One-Click Restore:** Re-opens your saved tabs directly inside Chrome via the extension. If the extension is not connected, tabs open in your default browser as a fallback.
 * **Live Connection Status:** The app shows whether the Chrome extension is currently connected.
 * **Persistent Memory:** Snapshots are stored on disk (with atomic writes) and survive app restarts.
+* **Auto-Update:** On Windows and Linux, the app checks GitHub Releases and notifies you when a new version is available.
 * **Management:** Easily delete old or unnecessary records.
 
 ## Installation (For End Users)
@@ -52,6 +60,8 @@ Platform notes:
    ```
 
 To build installers locally, run `npm run dist:win`, `npm run dist:mac` or `npm run dist:linux` on the matching operating system. Tagged pushes (`v*`) also trigger a GitHub Actions workflow that builds installers for all three platforms and attaches them to a GitHub Release.
+
+Before committing, run `npm run lint` and `npm run format:check` (or `npm run format` to auto-fix). See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contribution guide and [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Chrome Extension Setup (Required)
 

@@ -59,3 +59,5 @@ Desktop.ini
 .stylelintcache
 .cache
 .parcel-cache
+# --- Personal Obsidian vault (local notes, not part of the app) ---
+Context-Bot-Vault/

@@ -1,166 +1,148 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron'); // shell modülünü ekledik
+'use strict';
+
+/**
+ * Context Bot — Electron main process.
+ *
+ * Responsibilities:
+ *   - Application lifecycle and window creation.
+ *   - IPC endpoints consumed by the renderer (invoke/handle pattern).
+ *   - Wiring between the snapshot store, the OS window scanner and the
+ *     WebSocket bridge that talks to the Chrome extension.
+ */
+
+const { app, BrowserWindow, ipcMain, shell } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
-const { WebSocketServer } = require('ws'); 
-const fs = require('fs');
 
-let chromeTabsDetail = []; // Artık sadece başlıkları değil, URL'leri de burada tutuyoruz
+const { ExtensionBridge } = require('./src/extension-bridge');
+const { SnapshotStore } = require('./src/snapshot-store');
+const { getOsWindowTitles } = require('./src/window-scanner');
 
-// WebSocket Sunucusu
-const wss = new WebSocketServer({ port: 8080 }, () => {
-    console.log('WebSocket Sunucusu 8080 portunda hazır! 🚀');
+// Only http(s) URLs are ever reopened. This keeps restore from launching
+// arbitrary protocol handlers (file:, chrome:, custom app schemes, ...).
+const SAFE_URL_PATTERN = /^https?:\/\//i;
+
+let mainWindow = null;
+let store = null;
+
+const bridge = new ExtensionBridge({
+    onStatusChange: (connected) => {
+        // Push connection changes to the renderer so the UI badge stays live.
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('extension:status', connected);
+        }
+    },
 });
 
-wss.on('connection', (ws) => {
-    console.log('Tarayıcı eklentisi bağlandı! ✅');
-    ws.on('message', (message) => {
-        try {
-            chromeTabsDetail = JSON.parse(message); // [{title: "...", url: "..."}] şeklinde geliyor
-        } catch (e) { console.error("Veri hatası:", e); }
+// A second instance would fail to bind the WebSocket port and would fight
+// over the snapshot file — enforce a single instance instead.
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+    app.quit();
+} else {
+    app.on('second-instance', () => {
+        if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            mainWindow.focus();
+        }
     });
-    ws.on('close', () => { chromeTabsDetail = []; });
-});
+
+    app.whenReady().then(() => {
+        store = new SnapshotStore(
+            path.join(app.getPath('userData'), 'snapshots.json')
+        );
+        bridge.start();
+        registerIpcHandlers();
+        createWindow();
+
+        app.on('activate', () => {
+            // macOS: re-create the window when the dock icon is clicked.
+            if (BrowserWindow.getAllWindows().length === 0) createWindow();
+        });
+    });
+}
 
 function createWindow() {
-    const win = new BrowserWindow({
+    mainWindow = new BrowserWindow({
         width: 1000,
         height: 700,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
             contextIsolation: true,
+            sandbox: true,
+        },
+    });
+
+    mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
+
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+}
+
+function registerIpcHandlers() {
+    /** Returns all persisted snapshots. */
+    ipcMain.handle('snapshots:load', () => store.load());
+
+    /**
+     * Scans OS windows and combines them with the live Chrome tab list.
+     * Returns { osWindows: string[], chromeTabs: [{title, url}] }.
+     */
+    ipcMain.handle('windows:scan', async () => {
+        const osWindows = await getOsWindowTitles();
+        return { osWindows, chromeTabs: bridge.getTabs() };
+    });
+
+    /**
+     * Saves a new snapshot. Chrome tabs (with URLs) are captured from the
+     * bridge at save time; OS window titles come from the renderer's last
+     * scan so the list the user saw is exactly what gets saved.
+     */
+    ipcMain.handle('snapshots:save', (_event, { name, osWindows = [] } = {}) =>
+        store.add({ name, osWindows, chromeTabs: bridge.getTabs() })
+    );
+
+    /** Deletes a snapshot and returns the updated list. */
+    ipcMain.handle('snapshots:delete', (_event, id) => store.remove(id));
+
+    /**
+     * Restores a snapshot's browser tabs.
+     * Preferred path: ask the connected extension to open the tabs inside
+     * Chrome. Fallback: open each URL with the default browser.
+     * Returns { restored: number, method: 'extension' | 'shell' | 'none' }.
+     */
+    ipcMain.handle('snapshots:restore', async (_event, id) => {
+        const snapshot = await store.get(id);
+        if (!snapshot) {
+            return { restored: 0, method: 'none' };
         }
+
+        const urls = (snapshot.chromeTabs || [])
+            .map((tab) => tab.url)
+            .filter((url) => SAFE_URL_PATTERN.test(url));
+
+        if (urls.length === 0) {
+            return { restored: 0, method: 'none' };
+        }
+
+        console.log(`[main] Restoring context "${snapshot.name}" (${urls.length} tabs)`);
+
+        if (bridge.requestOpenTabs(urls)) {
+            return { restored: urls.length, method: 'extension' };
+        }
+
+        await Promise.all(urls.map((url) => shell.openExternal(url)));
+        return { restored: urls.length, method: 'shell' };
     });
-    win.loadFile(path.join(__dirname, './public/index.html'));
+
+    /** Lets the renderer render the correct badge on first paint. */
+    ipcMain.handle('extension:is-connected', () => bridge.isConnected());
 }
-
-ipcMain.on('load-snapshots', (event) => {
-    const filePath = path.join(app.getPath('userData'), 'snapshots.json');
-    if (fs.existsSync(filePath)) {
-        const snapshots = JSON.parse(fs.readFileSync(filePath));
-        event.reply('snapshot-saved', snapshots);
-    }
-});
-
-// 1. Tarama Motoru (platforma göre pencere/uygulama tarama komutu seçilir)
-function getOsWindowTitles(callback) {
-    if (process.platform === 'win32') {
-        const cmd = `powershell "Get-Process | Where-Object {$_.MainWindowTitle} | Select-Object -ExpandProperty MainWindowTitle"`;
-        exec(cmd, { maxBuffer: 1024 * 1024 }, (err, stdout) => {
-            if (err || !stdout) return callback([]);
-            callback(stdout.split('\r\n').map(line => line.trim()).filter(Boolean));
-        });
-        return;
-    }
-
-    if (process.platform === 'darwin') {
-        const cmd = `osascript -e 'tell application "System Events" to get name of every process whose visible is true'`;
-        exec(cmd, { maxBuffer: 1024 * 1024 }, (err, stdout) => {
-            if (err || !stdout) return callback([]);
-            // AppleScript comma-separated list, e.g. "Finder, Safari, Terminal"
-            callback(stdout.split(',').map(line => line.trim()).filter(Boolean));
-        });
-        return;
-    }
-
-    if (process.platform === 'linux') {
-        // Requires wmctrl (apt install wmctrl / dnf install wmctrl). If it's not
-        // installed we degrade gracefully to just the Chrome tabs instead of crashing.
-        exec('wmctrl -l', { maxBuffer: 1024 * 1024 }, (err, stdout) => {
-            if (err || !stdout) {
-                console.warn("Linux pencere taraması için 'wmctrl' bulunamadı ya da çalıştırılamadı. Kurmak için: sudo apt install wmctrl");
-                return callback([]);
-            }
-            // wmctrl -l columns: <window id> <desktop> <client machine> <title...>
-            const titles = stdout.split('\n')
-                .map(line => line.trim())
-                .filter(Boolean)
-                .map(line => line.split(/\s+/).slice(3).join(' ').trim())
-                .filter(Boolean);
-            callback(titles);
-        });
-        return;
-    }
-
-    // Unknown platform: no OS-level window scanning available.
-    callback([]);
-}
-
-ipcMain.on('scan-windows', (event) => {
-    getOsWindowTitles((rawTitles) => {
-        const osWindows = rawTitles
-            .filter(line => line && line.length > 2 && !line.includes("Google Chrome") && !line.includes("Context Bot"));
-
-        // Arayüzde listelemek için sadece başlıkları gönderiyoruz
-        const formattedTabs = chromeTabsDetail.map(tab => `[Chrome] ${tab.title}`);
-        const finalResults = [...new Set([...osWindows, ...formattedTabs])];
-
-        event.reply('scan-results', finalResults);
-    });
-});
-
-// 2. Snapshot Kaydetme (Geliştirilmiş: URL'leri de Gömüyoruz)
-ipcMain.on('save-snapshot', (event, { name }) => {
-    const filePath = path.join(app.getPath('userData'), 'snapshots.json');
-    let snapshots = [];
-    
-    if (fs.existsSync(filePath)) {
-        try { snapshots = JSON.parse(fs.readFileSync(filePath)); } catch (e) { snapshots = []; }
-    }
-
-    const newSnapshot = {
-        id: Date.now(),
-        name: name,
-        osWindows: [], // Opsiyonel: İlerde VS Code gibi uygulamaları açmak için
-        chromeTabs: chromeTabsDetail, // SİHİR BURADA: URL'ler burada saklanıyor
-        timestamp: new Date().toLocaleString()
-    };
-
-    snapshots.push(newSnapshot);
-    fs.writeFileSync(filePath, JSON.stringify(snapshots, null, 2));
-    event.reply('snapshot-saved', snapshots);
-});
-
-// 3. SİHİRLİ DÜĞME: Geri Yükleme (Restore)
-ipcMain.on('restore-snapshot', (event, snapshotId) => {
-    const filePath = path.join(app.getPath('userData'), 'snapshots.json');
-    if (!fs.existsSync(filePath)) return;
-
-    const snapshots = JSON.parse(fs.readFileSync(filePath));
-    const target = snapshots.find(s => s.id === snapshotId);
-
-    if (target && target.chromeTabs) {
-        console.log(`${target.name} bağlamı geri yükleniyor...`);
-        // Kayıtlı her bir URL'yi varsayılan tarayıcıda açar
-        target.chromeTabs.forEach(tab => {
-            shell.openExternal(tab.url);
-        });
-    }
-});
-
-ipcMain.on('delete-snapshot', (event, snapshotId) => {
-    const filePath = path.join(app.getPath('userData'), 'snapshots.json');
-    if (!fs.existsSync(filePath)) {
-        event.reply('snapshot-saved', []);
-        return;
-    }
-
-    let snapshots = [];
-    try {
-        snapshots = JSON.parse(fs.readFileSync(filePath));
-    } catch (e) {
-        console.error("Snapshot dosyası okunamadı:", e);
-        event.reply('snapshot-saved', []);
-        return;
-    }
-
-    snapshots = snapshots.filter(s => s.id !== snapshotId);
-    fs.writeFileSync(filePath, JSON.stringify(snapshots, null, 2));
-    event.reply('snapshot-saved', snapshots);
-});
-
-app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('will-quit', () => {
+    bridge.stop();
 });

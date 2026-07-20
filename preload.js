@@ -1,22 +1,41 @@
-// Preload script: runs in an isolated context with access to Node APIs,
-// and exposes only the specific IPC calls the renderer actually needs via
-// contextBridge. This replaces the previous nodeIntegration:true /
-// contextIsolation:false setup, which gave the renderer (and any script
-// that ever ends up running in it) full Node.js access — an unnecessary
-// security risk for a desktop app that only needs a handful of IPC calls.
+'use strict';
+
+/**
+ * Preload script: runs in an isolated context and exposes only the specific,
+ * whitelisted IPC calls the renderer needs via contextBridge. The renderer
+ * never gets direct Node.js or Electron access.
+ */
+
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('contextBot', {
-    loadSnapshots: () => ipcRenderer.send('load-snapshots'),
-    scanWindows: () => ipcRenderer.send('scan-windows'),
-    saveSnapshot: (name) => ipcRenderer.send('save-snapshot', { name }),
-    restoreSnapshot: (id) => ipcRenderer.send('restore-snapshot', id),
-    deleteSnapshot: (id) => ipcRenderer.send('delete-snapshot', id),
+    /** @returns {Promise<Array<object>>} All persisted snapshots. */
+    loadSnapshots: () => ipcRenderer.invoke('snapshots:load'),
 
-    onScanResults: (callback) => {
-        ipcRenderer.on('scan-results', (_event, results) => callback(results));
-    },
-    onSnapshotSaved: (callback) => {
-        ipcRenderer.on('snapshot-saved', (_event, snapshots) => callback(snapshots));
+    /** @returns {Promise<{osWindows: string[], chromeTabs: Array<{title: string, url: string}>}>} */
+    scanWindows: () => ipcRenderer.invoke('windows:scan'),
+
+    /**
+     * @param {string} name
+     * @param {string[]} osWindows Window titles from the latest scan.
+     * @returns {Promise<Array<object>>} The updated snapshot list.
+     */
+    saveSnapshot: (name, osWindows) =>
+        ipcRenderer.invoke('snapshots:save', { name, osWindows }),
+
+    /** @returns {Promise<{restored: number, method: string}>} */
+    restoreSnapshot: (id) => ipcRenderer.invoke('snapshots:restore', id),
+
+    /** @returns {Promise<Array<object>>} The updated snapshot list. */
+    deleteSnapshot: (id) => ipcRenderer.invoke('snapshots:delete', id),
+
+    /** @returns {Promise<boolean>} Whether the Chrome extension is connected. */
+    isExtensionConnected: () => ipcRenderer.invoke('extension:is-connected'),
+
+    /** Subscribes to live extension connect/disconnect events. */
+    onExtensionStatus: (callback) => {
+        ipcRenderer.on('extension:status', (_event, connected) =>
+            callback(connected)
+        );
     },
 });

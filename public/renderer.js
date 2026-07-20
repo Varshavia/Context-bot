@@ -38,12 +38,13 @@ function StatusBadge({ connected }) {
                 ? 'The Chrome extension is connected. Tabs will restore inside Chrome.'
                 : 'Chrome extension not connected. Tabs will open in the default browser.',
         },
-        connected ? 'Extension: connected' : 'Extension: not connected'
+        connected ? 'Extension: connected' : 'Extension: not connected',
     );
 }
 
 function App() {
     const [scan, setScan] = useState({ osWindows: [], chromeTabs: [] });
+    const [hasScanned, setHasScanned] = useState(false);
     const [snapshotName, setSnapshotName] = useState('');
     const [snapshots, setSnapshots] = useState([]);
     const [extensionConnected, setExtensionConnected] = useState(false);
@@ -59,6 +60,7 @@ function App() {
     const handleScan = useCallback(async () => {
         const results = await window.contextBot.scanWindows();
         setScan(results);
+        setHasScanned(true);
         setNotice('');
     }, []);
 
@@ -122,11 +124,31 @@ function App() {
                     e(
                         'button',
                         { className: 'save-btn', onClick: handleSave, key: 'save' },
-                        'Take Snapshot'
+                        'Take Snapshot',
                     ),
                 ]),
             notice && e('div', { className: 'notice', key: 'notice' }, notice),
         ]),
+
+        // Empty states guide first-time users through the workflow.
+        !hasScanned &&
+            snapshots.length === 0 &&
+            e(
+                'div',
+                { className: 'empty-state', key: 'empty-initial' },
+                'Welcome! Click "Scan Windows" to detect your open windows and ' +
+                    'Chrome tabs, then save them as a named snapshot you can ' +
+                    'restore anytime.',
+            ),
+
+        hasScanned &&
+            detectedItems.length === 0 &&
+            e(
+                'div',
+                { className: 'empty-state', key: 'empty-scan' },
+                'No windows or tabs detected. Make sure some applications are ' +
+                    'open — and connect the Chrome extension to include browser tabs.',
+            ),
 
         // Current scan results.
         detectedItems.length > 0 &&
@@ -134,10 +156,10 @@ function App() {
                 e(
                     'h3',
                     { className: 'section-title', key: 'detected-title' },
-                    'Detected Windows & Tabs'
+                    'Detected Windows & Tabs',
                 ),
                 ...detectedItems.map((item, index) =>
-                    e('div', { key: `item-${index}`, className: 'window-item' }, item)
+                    e('div', { key: `item-${index}`, className: 'window-item' }, item),
                 ),
             ]),
 
@@ -147,7 +169,7 @@ function App() {
                 e(
                     'h3',
                     { className: 'section-title', key: 'snapshots-title' },
-                    'Saved Snapshots'
+                    'Saved Snapshots',
                 ),
                 ...snapshots.map((snapshot) =>
                     e('div', { key: snapshot.id, className: 'snapshot-card' }, [
@@ -156,12 +178,12 @@ function App() {
                                 e(
                                     'div',
                                     { className: 'snapshot-name', key: 'name' },
-                                    snapshot.name
+                                    snapshot.name,
                                 ),
                                 e(
                                     'div',
                                     { className: 'snapshot-date', key: 'date' },
-                                    formatCreatedAt(snapshot)
+                                    formatCreatedAt(snapshot),
                                 ),
                             ]),
                             e('div', { key: 'actions' }, [
@@ -172,7 +194,7 @@ function App() {
                                         onClick: () => handleRestore(snapshot),
                                         key: 'restore',
                                     },
-                                    'Restore'
+                                    'Restore',
                                 ),
                                 e(
                                     'button',
@@ -181,16 +203,16 @@ function App() {
                                         onClick: () => handleDelete(snapshot),
                                         key: 'delete',
                                     },
-                                    'Delete'
+                                    'Delete',
                                 ),
                             ]),
                         ]),
                         e(
                             'div',
                             { className: 'snapshot-summary', key: 'summary' },
-                            summarize(snapshot)
+                            summarize(snapshot),
                         ),
-                    ])
+                    ]),
                 ),
             ]),
     ]);

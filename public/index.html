@@ -1,20 +1,22 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <!-- Strict CSP: only local scripts and styles, no inline code, no remote origins. -->
-    <meta http-equiv="Content-Security-Policy"
-          content="default-src 'self'; script-src 'self'; style-src 'self'">
-    <title>Context Bot</title>
-    <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-    <div class="container">
-        <div id="root"></div>
-    </div>
+    <head>
+        <meta charset="UTF-8" />
+        <!-- Strict CSP: only local scripts and styles, no inline code, no remote origins. -->
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self'; style-src 'self'"
+        />
+        <title>Context Bot</title>
+        <link rel="stylesheet" href="styles.css" />
+    </head>
+    <body>
+        <div class="container">
+            <div id="root"></div>
+        </div>
 
-    <script src="vendor/react.production.min.js"></script>
-    <script src="vendor/react-dom.production.min.js"></script>
-    <script src="renderer.js"></script>
-</body>
+        <script src="vendor/react.production.min.js"></script>
+        <script src="vendor/react-dom.production.min.js"></script>
+        <script src="renderer.js"></script>
+    </body>
 </html>

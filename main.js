@@ -10,7 +10,7 @@
  *     WebSocket bridge that talks to the Chrome extension.
  */
 
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
 const path = require('path');
 
 const { ExtensionBridge } = require('./src/extension-bridge');
@@ -47,12 +47,12 @@ if (!hasSingleInstanceLock) {
     });
 
     app.whenReady().then(() => {
-        store = new SnapshotStore(
-            path.join(app.getPath('userData'), 'snapshots.json')
-        );
+        store = new SnapshotStore(path.join(app.getPath('userData'), 'snapshots.json'));
+        setupApplicationMenu();
         bridge.start();
         registerIpcHandlers();
         createWindow();
+        initAutoUpdater();
 
         app.on('activate', () => {
             // macOS: re-create the window when the dock icon is clicked.
@@ -68,6 +68,10 @@ function createWindow() {
         // Windows/macOS take the app icon from the installer bundle; Linux
         // needs it set explicitly for the window/taskbar icon.
         icon: path.join(__dirname, 'assets', 'icon.png'),
+        // Match the UI theme and defer showing until the first paint so the
+        // window never flashes white on launch.
+        backgroundColor: '#121212',
+        show: false,
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: false,
@@ -76,11 +80,50 @@ function createWindow() {
         },
     });
 
+    mainWindow.once('ready-to-show', () => mainWindow.show());
     mainWindow.loadFile(path.join(__dirname, 'public', 'index.html'));
 
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
+}
+
+function setupApplicationMenu() {
+    if (process.platform === 'darwin') {
+        // Keep a minimal native menu on macOS so standard shortcuts
+        // (copy/paste, hide, quit) keep working.
+        Menu.setApplicationMenu(
+            Menu.buildFromTemplate([
+                { role: 'appMenu' },
+                { role: 'editMenu' },
+                { role: 'windowMenu' },
+            ]),
+        );
+    } else {
+        // Hide the default File/Edit/View developer menu on Windows/Linux.
+        Menu.setApplicationMenu(null);
+    }
+}
+
+function initAutoUpdater() {
+    // Auto-update only makes sense for packaged builds, and unsigned macOS
+    // builds cannot apply updates (Squirrel.Mac requires a valid code
+    // signature), so it is limited to Windows and Linux for now.
+    if (!app.isPackaged || process.platform === 'darwin') return;
+
+    let autoUpdater;
+    try {
+        ({ autoUpdater } = require('electron-updater'));
+    } catch (err) {
+        console.warn('[updater] electron-updater not available:', err.message);
+        return;
+    }
+
+    autoUpdater.on('error', (err) => {
+        // Update failures must never break the app — log and move on.
+        console.error('[updater] Update check failed:', err.message);
+    });
+    autoUpdater.checkForUpdatesAndNotify();
 }
 
 function registerIpcHandlers() {
@@ -102,7 +145,7 @@ function registerIpcHandlers() {
      * scan so the list the user saw is exactly what gets saved.
      */
     ipcMain.handle('snapshots:save', (_event, { name, osWindows = [] } = {}) =>
-        store.add({ name, osWindows, chromeTabs: bridge.getTabs() })
+        store.add({ name, osWindows, chromeTabs: bridge.getTabs() }),
     );
 
     /** Deletes a snapshot and returns the updated list. */
@@ -128,7 +171,9 @@ function registerIpcHandlers() {
             return { restored: 0, method: 'none' };
         }
 
-        console.log(`[main] Restoring context "${snapshot.name}" (${urls.length} tabs)`);
+        console.log(
+            `[main] Restoring context "${snapshot.name}" (${urls.length} tabs)`,
+        );
 
         if (bridge.requestOpenTabs(urls)) {
             return { restored: urls.length, method: 'extension' };

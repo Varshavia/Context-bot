@@ -1,77 +1,90 @@
 {
-  "name": "context-bot",
-  "version": "1.1.0",
-  "description": "An OS-level context switcher for developers. Saves open windows and Chrome tabs as snapshots and restores them on demand.",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dist": "electron-builder",
-    "dist:win": "electron-builder --win",
-    "dist:mac": "electron-builder --mac",
-    "dist:linux": "electron-builder --linux"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/Varshavia/Context-bot.git"
-  },
-  "keywords": [
-    "electron",
-    "productivity",
-    "context-switcher"
-  ],
-  "author": {
-    "name": "Yusuf Suat Babacan",
-    "email": "yusufsuat2002@gmail.com"
-  },
-  "license": "ISC",
-  "type": "commonjs",
-  "build": {
-    "appId": "com.yusuf.contextbot",
-    "productName": "Context Bot",
-    "win": {
-      "target": "nsis",
-      "icon": "public/icon.ico"
+    "name": "context-bot",
+    "version": "1.2.0",
+    "description": "An OS-level context switcher for developers. Saves open windows and Chrome tabs as snapshots and restores them on demand.",
+    "main": "main.js",
+    "scripts": {
+        "start": "electron .",
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "dist": "electron-builder",
+        "dist:win": "electron-builder --win",
+        "dist:mac": "electron-builder --mac",
+        "dist:linux": "electron-builder --linux",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
     },
-    "mac": {
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "icon": "assets/icon.png",
-      "category": "public.app-category.productivity"
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Varshavia/Context-bot.git"
     },
-    "linux": {
-      "target": [
-        "AppImage",
-        "deb"
-      ],
-      "icon": "assets/icon.png",
-      "category": "Utility",
-      "maintainer": "Yusuf Suat Babacan <yusufsuat2002@gmail.com>"
-    },
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "main.js",
-      "preload.js",
-      "src/**/*",
-      "public/**/*",
-      "assets/**/*",
-      "node_modules/**/*"
+    "keywords": [
+        "electron",
+        "productivity",
+        "context-switcher"
     ],
-    "asar": true
-  },
-  "devDependencies": {
-    "concurrently": "^9.2.1",
-    "electron": "^33.0.0",
-    "electron-builder": "^26.7.0",
-    "wait-on": "^8.0.0"
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "ws": "^8.19.0"
-  }
+    "author": {
+        "name": "Yusuf Suat Babacan",
+        "email": "yusufsuat2002@gmail.com"
+    },
+    "license": "ISC",
+    "type": "commonjs",
+    "build": {
+        "appId": "com.yusuf.contextbot",
+        "productName": "Context Bot",
+        "win": {
+            "target": "nsis",
+            "icon": "public/icon.ico"
+        },
+        "mac": {
+            "target": [
+                "dmg",
+                "zip"
+            ],
+            "icon": "assets/icon.png",
+            "category": "public.app-category.productivity"
+        },
+        "linux": {
+            "target": [
+                "AppImage",
+                "deb"
+            ],
+            "icon": "assets/icon.png",
+            "category": "Utility",
+            "maintainer": "Yusuf Suat Babacan <yusufsuat2002@gmail.com>"
+        },
+        "publish": {
+            "provider": "github",
+            "owner": "Varshavia",
+            "repo": "Context-bot"
+        },
+        "directories": {
+            "output": "dist"
+        },
+        "files": [
+            "main.js",
+            "preload.js",
+            "src/**/*",
+            "public/**/*",
+            "assets/**/*",
+            "node_modules/**/*"
+        ],
+        "asar": true
+    },
+    "devDependencies": {
+        "@eslint/js": "^9.0.0",
+        "concurrently": "^9.2.1",
+        "electron": "^33.0.0",
+        "electron-builder": "^26.7.0",
+        "eslint": "^9.0.0",
+        "globals": "^15.0.0",
+        "prettier": "^3.0.0",
+        "wait-on": "^8.0.0"
+    },
+    "dependencies": {
+        "electron-updater": "^6.3.9",
+        "react": "^18.3.1",
+        "react-dom": "^18.3.1",
+        "ws": "^8.19.0"
+    }
 }

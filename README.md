@@ -2,7 +2,7 @@
 
 **Context Bot** is an open-source context management tool for developers. It saves your active workspace windows and Chrome tabs as a snapshot and restores them with a single click whenever you want.
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.3.0-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![Built With](https://img.shields.io/badge/built%20with-Electron%20%2B%20React-61DAFB)
 ![CI](https://github.com/Varshavia/Context-bot/actions/workflows/ci.yml/badge.svg)
@@ -17,11 +17,13 @@
 
 * **Smart Scanning:** Automatically detects open system windows and Google Chrome tabs (GitHub, StackOverflow, etc.).
 * **Snapshot Recording:** Save your current workspace state by naming it (e.g., "Algorithm Homework", "Project X").
-* **One-Click Restore:** Re-opens your saved tabs directly inside Chrome via the extension. If the extension is not connected, tabs open in your default browser as a fallback.
+* **One-Click Restore:** Re-opens your saved tabs directly inside Chrome via the extension, recreating the original browser window layout. If the extension is not connected, tabs open in your default browser as a fallback.
+* **App Relaunch:** Known desktop applications that were open when you took the snapshot (VS Code, Terminal, Slack, Obsidian and more) are started again on restore.
+* **System Tray:** Take a quick snapshot or restore a recent one straight from the tray, without opening the window.
+* **Update, Rename, Search:** Refresh a snapshot with your current workspace, rename it inline, and filter your snapshots by name or by the titles they contain.
 * **Live Connection Status:** The app shows whether the Chrome extension is currently connected.
 * **Persistent Memory:** Snapshots are stored on disk (with atomic writes) and survive app restarts.
 * **Auto-Update:** On Windows and Linux, the app checks GitHub Releases and notifies you when a new version is available.
-* **Management:** Easily delete old or unnecessary records.
 
 ## Installation (For End Users)
 
@@ -88,6 +90,7 @@ preload.js               contextBridge API exposed to the renderer
 src/extension-bridge.js  WebSocket server for the Chrome extension
 src/snapshot-store.js    Snapshot persistence (async, atomic writes)
 src/window-scanner.js    Cross-platform OS window scanning
+src/app-launcher.js      Relaunches known desktop apps on restore
 public/                  Renderer (index.html, renderer.js, styles.css, vendor React)
 extension/               Chrome MV3 extension (tab reporting + restore)
 assets/                  Build resources (app icon for macOS/Linux)
@@ -97,9 +100,9 @@ assets/                  Build resources (app icon for macOS/Linux)
 
 The app and the extension exchange JSON messages over `ws://localhost:8080`:
 
-* Extension → App: `{ "type": "tabs", "payload": [{ "title", "url" }] }` — sent whenever tabs change.
+* Extension → App: `{ "type": "tabs", "payload": [{ "title", "url", "windowId" }] }` — sent whenever tabs change. `windowId` lets snapshots remember which tabs shared a browser window.
 * Extension → App: `{ "type": "ping" }` — keepalive (also keeps the MV3 service worker alive).
-* App → Extension: `{ "type": "open-tabs", "payload": { "urls": [...] } }` — restore command; the extension opens each URL as a background tab. Only `http(s)` URLs are ever restored.
+* App → Extension: `{ "type": "open-tabs", "payload": { "windows": [[url, ...]], "urls": [...] } }` — restore command. Each `windows` group is opened as its own browser window; the flat `urls` list is a fallback for older extension versions. Only `http(s)` URLs are ever restored.
 
 ## Compatibility
 

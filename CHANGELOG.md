@@ -4,6 +4,19 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - Unreleased
+
+### Added
+
+- **Snapshot management:** refresh an existing snapshot with your current workspace ("Update"), rename it inline by clicking its name, and search snapshots by name or by the window/tab titles they contain.
+- **Window-aware restore:** tabs now remember which browser window they belonged to (`windowId`) and are reopened as separate Chrome windows, reproducing the original layout.
+- **App relaunch:** known desktop applications (VS Code, Terminal, iTerm, IntelliJ, Sublime Text, Slack, Discord, Notion, Obsidian, Spotify, Figma, Postman) are started again on restore, matched against a curated catalog rather than executing arbitrary window titles.
+- **System tray:** take a quick timestamped snapshot, restore one of the eight most recent snapshots, reveal the window or quit — all from the tray. Closing the window now hides the app to the tray instead of quitting.
+
+### Changed
+
+- Chrome extension bumped to 1.2 (reports `windowId`, handles grouped restore). Reload the unpacked extension after updating.
+
 ## [1.2.0] - Unreleased
 
 ### Added

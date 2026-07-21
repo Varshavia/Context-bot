@@ -6,9 +6,12 @@
  * Manages the WebSocket server that the Chrome extension connects to.
  *
  * Protocol (JSON messages):
- *   Extension -> App : { type: 'tabs', payload: [{ title, url }, ...] }
+ *   Extension -> App : { type: 'tabs', payload: [{ title, url, windowId }, ...] }
  *   Extension -> App : { type: 'ping' }                       (MV3 keepalive)
- *   App -> Extension : { type: 'open-tabs', payload: { urls: [...] } }
+ *   App -> Extension : { type: 'open-tabs', payload: { windows: [[url, ...]],
+ *                                                      urls: [...] } }
+ *                      `windows` groups tabs by their original browser window;
+ *                      `urls` is a flat fallback for older extensions.
  *
  * A plain JSON array is also accepted as a tab list for backwards
  * compatibility with older versions of the extension.
@@ -103,7 +106,7 @@ class ExtensionBridge {
         }
     }
 
-    /** Keeps only well-formed { title, url } entries. */
+    /** Keeps only well-formed { title, url, windowId } entries. */
     sanitizeTabs(payload) {
         if (!Array.isArray(payload)) return [];
         return payload
@@ -111,6 +114,9 @@ class ExtensionBridge {
             .map((tab) => ({
                 title: typeof tab.title === 'string' ? tab.title : tab.url,
                 url: tab.url,
+                // Older extensions do not report windowId; null means
+                // "unknown window" and restores into a single group.
+                windowId: Number.isInteger(tab.windowId) ? tab.windowId : null,
             }));
     }
 
@@ -126,13 +132,19 @@ class ExtensionBridge {
 
     /**
      * Asks the connected extension to open the given URLs as browser tabs.
-     * @param {string[]} urls
+     * @param {string[][]} windows URL groups; each group becomes one browser
+     *        window. A flat `urls` list is also sent so that older extension
+     *        versions, which ignore `windows`, still restore the tabs.
      * @returns {boolean} true if the request was sent to at least one client.
      */
-    requestOpenTabs(urls) {
+    requestOpenTabs(windows) {
         if (!this.isConnected()) return false;
 
-        const message = JSON.stringify({ type: 'open-tabs', payload: { urls } });
+        const urls = windows.flat();
+        const message = JSON.stringify({
+            type: 'open-tabs',
+            payload: { windows, urls },
+        });
         let sent = false;
         for (const client of this.clients) {
             if (client.readyState === client.OPEN) {

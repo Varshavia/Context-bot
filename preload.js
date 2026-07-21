@@ -23,7 +23,19 @@ contextBridge.exposeInMainWorld('contextBot', {
     saveSnapshot: (name, osWindows) =>
         ipcRenderer.invoke('snapshots:save', { name, osWindows }),
 
-    /** @returns {Promise<{restored: number, method: string}>} */
+    /**
+     * Re-captures an existing snapshot with the current workspace state.
+     * @param {number} id
+     * @param {string[]} osWindows Window titles from the latest scan.
+     * @returns {Promise<Array<object>>} The updated snapshot list.
+     */
+    updateSnapshot: (id, osWindows) =>
+        ipcRenderer.invoke('snapshots:update', { id, osWindows }),
+
+    /** @returns {Promise<Array<object>>} The updated snapshot list. */
+    renameSnapshot: (id, name) => ipcRenderer.invoke('snapshots:rename', { id, name }),
+
+    /** @returns {Promise<{restored: number, method: string, apps: string[]}>} */
     restoreSnapshot: (id) => ipcRenderer.invoke('snapshots:restore', id),
 
     /** @returns {Promise<Array<object>>} The updated snapshot list. */
@@ -35,5 +47,10 @@ contextBridge.exposeInMainWorld('contextBot', {
     /** Subscribes to live extension connect/disconnect events. */
     onExtensionStatus: (callback) => {
         ipcRenderer.on('extension:status', (_event, connected) => callback(connected));
+    },
+
+    /** Subscribes to snapshot changes made outside the UI (e.g. the tray). */
+    onSnapshotsChanged: (callback) => {
+        ipcRenderer.on('snapshots:changed', (_event, snapshots) => callback(snapshots));
     },
 });

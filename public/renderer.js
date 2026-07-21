@@ -8,7 +8,7 @@
  * API exposed by the preload script.
  */
 
-const { useState, useEffect, useCallback } = React;
+const { useState, useEffect, useCallback, useMemo } = React;
 const e = React.createElement;
 
 /** Formats a snapshot's creation time, supporting both current (ISO
@@ -18,13 +18,45 @@ function formatCreatedAt(snapshot) {
     return snapshot.timestamp || '';
 }
 
+function formatMeta(snapshot) {
+    const created = formatCreatedAt(snapshot);
+    if (!snapshot.updatedAt) return created;
+    return `${created} · updated ${new Date(snapshot.updatedAt).toLocaleString()}`;
+}
+
 function summarize(snapshot) {
-    const tabCount = (snapshot.chromeTabs || []).length;
+    const tabs = snapshot.chromeTabs || [];
     const windowCount = (snapshot.osWindows || []).length;
+    const browserWindows = new Set(
+        tabs.map((tab) => (Number.isInteger(tab.windowId) ? tab.windowId : 'legacy')),
+    ).size;
+
     const parts = [];
-    if (tabCount) parts.push(`${tabCount} browser tab${tabCount === 1 ? '' : 's'}`);
+    if (tabs.length) {
+        const across =
+            browserWindows > 1 ? ` across ${browserWindows} browser windows` : '';
+        parts.push(`${tabs.length} tab${tabs.length === 1 ? '' : 's'}${across}`);
+    }
     if (windowCount) parts.push(`${windowCount} window${windowCount === 1 ? '' : 's'}`);
-    return parts.length ? `${parts.join(' and ')} saved.` : 'No window data saved.';
+    return parts.length ? `${parts.join(', ')} saved.` : 'No window data saved.';
+}
+
+/** Builds the status line shown after a restore. */
+function describeRestore(snapshot, result) {
+    const parts = [];
+    if (result.restored > 0) {
+        parts.push(
+            result.method === 'extension'
+                ? `Restored ${result.restored} tabs in Chrome`
+                : `Opened ${result.restored} tabs in the default browser`,
+        );
+    }
+    if (result.apps && result.apps.length) {
+        parts.push(`launched ${result.apps.join(', ')}`);
+    }
+    return parts.length
+        ? `${parts.join(' and ')}.`
+        : `"${snapshot.name}" had nothing to restore.`;
 }
 
 function StatusBadge({ connected }) {
@@ -42,11 +74,100 @@ function StatusBadge({ connected }) {
     );
 }
 
+/** A single saved snapshot, with inline renaming. */
+function SnapshotCard({ snapshot, onRestore, onUpdate, onDelete, onRename }) {
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [draftName, setDraftName] = useState(snapshot.name);
+
+    const commitRename = () => {
+        const name = draftName.trim();
+        if (name && name !== snapshot.name) onRename(snapshot, name);
+        setIsRenaming(false);
+    };
+
+    const nameNode = isRenaming
+        ? e('input', {
+              className: 'rename-input',
+              value: draftName,
+              autoFocus: true,
+              onChange: (event) => setDraftName(event.target.value),
+              onBlur: commitRename,
+              onKeyDown: (event) => {
+                  if (event.key === 'Enter') commitRename();
+                  if (event.key === 'Escape') {
+                      setDraftName(snapshot.name);
+                      setIsRenaming(false);
+                  }
+              },
+          })
+        : e(
+              'div',
+              {
+                  className: 'snapshot-name',
+                  title: 'Click to rename',
+                  onClick: () => {
+                      setDraftName(snapshot.name);
+                      setIsRenaming(true);
+                  },
+              },
+              snapshot.name,
+          );
+
+    return e('div', { className: 'snapshot-card' }, [
+        e('div', { className: 'snapshot-header', key: 'head' }, [
+            e('div', { key: 'meta', className: 'snapshot-meta' }, [
+                e('div', { key: 'name' }, nameNode),
+                e(
+                    'div',
+                    { className: 'snapshot-date', key: 'date' },
+                    formatMeta(snapshot),
+                ),
+            ]),
+            e('div', { key: 'actions', className: 'snapshot-actions' }, [
+                e(
+                    'button',
+                    {
+                        className: 'restore-btn',
+                        onClick: () => onRestore(snapshot),
+                        key: 'restore',
+                    },
+                    'Restore',
+                ),
+                e(
+                    'button',
+                    {
+                        className: 'update-btn',
+                        title: 'Replace this snapshot with your current workspace',
+                        onClick: () => onUpdate(snapshot),
+                        key: 'update',
+                    },
+                    'Update',
+                ),
+                e(
+                    'button',
+                    {
+                        className: 'delete-btn',
+                        onClick: () => onDelete(snapshot),
+                        key: 'delete',
+                    },
+                    'Delete',
+                ),
+            ]),
+        ]),
+        e(
+            'div',
+            { className: 'snapshot-summary', key: 'summary' },
+            summarize(snapshot),
+        ),
+    ]);
+}
+
 function App() {
     const [scan, setScan] = useState({ osWindows: [], chromeTabs: [] });
     const [hasScanned, setHasScanned] = useState(false);
     const [snapshotName, setSnapshotName] = useState('');
     const [snapshots, setSnapshots] = useState([]);
+    const [query, setQuery] = useState('');
     const [extensionConnected, setExtensionConnected] = useState(false);
     const [notice, setNotice] = useState('');
 
@@ -55,6 +176,8 @@ function App() {
         window.contextBot.loadSnapshots().then(setSnapshots);
         window.contextBot.isExtensionConnected().then(setExtensionConnected);
         window.contextBot.onExtensionStatus(setExtensionConnected);
+        // Snapshots can also change from the tray menu while the UI is open.
+        window.contextBot.onSnapshotsChanged(setSnapshots);
     }, []);
 
     const handleScan = useCallback(async () => {
@@ -78,13 +201,26 @@ function App() {
 
     const handleRestore = useCallback(async (snapshot) => {
         const result = await window.contextBot.restoreSnapshot(snapshot.id);
-        if (result.restored === 0) {
-            setNotice(`"${snapshot.name}" has no restorable tabs.`);
-        } else if (result.method === 'extension') {
-            setNotice(`Restored ${result.restored} tabs in Chrome.`);
-        } else {
-            setNotice(`Opened ${result.restored} tabs in the default browser.`);
-        }
+        setNotice(describeRestore(snapshot, result));
+    }, []);
+
+    const handleUpdate = useCallback(async (snapshot) => {
+        // Re-scan first so the refresh captures the workspace as it is now.
+        const current = await window.contextBot.scanWindows();
+        setScan(current);
+        setHasScanned(true);
+        const updated = await window.contextBot.updateSnapshot(
+            snapshot.id,
+            current.osWindows,
+        );
+        setSnapshots(updated);
+        setNotice(`"${snapshot.name}" updated with your current workspace.`);
+    }, []);
+
+    const handleRename = useCallback(async (snapshot, name) => {
+        const updated = await window.contextBot.renameSnapshot(snapshot.id, name);
+        setSnapshots(updated);
+        setNotice(`Renamed to "${name}".`);
     }, []);
 
     const handleDelete = useCallback(async (snapshot) => {
@@ -100,6 +236,22 @@ function App() {
         ...scan.osWindows,
         ...scan.chromeTabs.map((tab) => `[Chrome] ${tab.title}`),
     ];
+
+    // Search matches snapshot names as well as the titles they contain.
+    const visibleSnapshots = useMemo(() => {
+        const needle = query.trim().toLowerCase();
+        if (!needle) return snapshots;
+        return snapshots.filter((snapshot) => {
+            const haystack = [
+                snapshot.name,
+                ...(snapshot.osWindows || []),
+                ...(snapshot.chromeTabs || []).map((tab) => tab.title),
+            ]
+                .join(' ')
+                .toLowerCase();
+            return haystack.includes(needle);
+        });
+    }, [snapshots, query]);
 
     return e('div', null, [
         e('div', { className: 'header', key: 'header' }, [
@@ -166,54 +318,37 @@ function App() {
         // Saved snapshots.
         snapshots.length > 0 &&
             e('div', { key: 'snapshots' }, [
-                e(
-                    'h3',
-                    { className: 'section-title', key: 'snapshots-title' },
-                    'Saved Snapshots',
-                ),
-                ...snapshots.map((snapshot) =>
-                    e('div', { key: snapshot.id, className: 'snapshot-card' }, [
-                        e('div', { className: 'snapshot-header', key: 'head' }, [
-                            e('div', { key: 'meta' }, [
-                                e(
-                                    'div',
-                                    { className: 'snapshot-name', key: 'name' },
-                                    snapshot.name,
-                                ),
-                                e(
-                                    'div',
-                                    { className: 'snapshot-date', key: 'date' },
-                                    formatCreatedAt(snapshot),
-                                ),
-                            ]),
-                            e('div', { key: 'actions' }, [
-                                e(
-                                    'button',
-                                    {
-                                        className: 'restore-btn',
-                                        onClick: () => handleRestore(snapshot),
-                                        key: 'restore',
-                                    },
-                                    'Restore',
-                                ),
-                                e(
-                                    'button',
-                                    {
-                                        className: 'delete-btn',
-                                        onClick: () => handleDelete(snapshot),
-                                        key: 'delete',
-                                    },
-                                    'Delete',
-                                ),
-                            ]),
-                        ]),
-                        e(
-                            'div',
-                            { className: 'snapshot-summary', key: 'summary' },
-                            summarize(snapshot),
-                        ),
-                    ]),
-                ),
+                e('div', { className: 'snapshots-header', key: 'snapshots-title' }, [
+                    e(
+                        'h3',
+                        { className: 'section-title', key: 'title' },
+                        'Saved Snapshots',
+                    ),
+                    e('input', {
+                        key: 'search',
+                        className: 'search-input',
+                        type: 'search',
+                        placeholder: 'Search snapshots...',
+                        value: query,
+                        onChange: (event) => setQuery(event.target.value),
+                    }),
+                ]),
+                visibleSnapshots.length === 0
+                    ? e(
+                          'div',
+                          { className: 'empty-state', key: 'empty-search' },
+                          `No snapshots match "${query}".`,
+                      )
+                    : visibleSnapshots.map((snapshot) =>
+                          e(SnapshotCard, {
+                              key: snapshot.id,
+                              snapshot,
+                              onRestore: handleRestore,
+                              onUpdate: handleUpdate,
+                              onRename: handleRename,
+                              onDelete: handleDelete,
+                          }),
+                      ),
             ]),
     ]);
 }

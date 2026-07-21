@@ -12,8 +12,9 @@
  *     id:        number   // Date.now() at creation time
  *     name:      string
  *     osWindows: string[] // window titles captured at save time
- *     chromeTabs:[{ title: string, url: string }]
+ *     chromeTabs:[{ title: string, url: string, windowId: number | null }]
  *     createdAt: string   // ISO 8601
+ *     updatedAt?: string  // ISO 8601, set when the snapshot is re-captured
  *   }
  */
 
@@ -67,6 +68,53 @@ class SnapshotStore {
 
         const snapshots = await this.load();
         snapshots.push(snapshot);
+        await this.persist(snapshots);
+        return snapshots;
+    }
+
+    /**
+     * Re-captures an existing snapshot with the current workspace state,
+     * keeping its id and name.
+     * @param {number} id
+     * @param {{ osWindows?: string[], chromeTabs?: object[] }} state
+     * @returns {Promise<Array<object>>} The updated snapshot list.
+     */
+    async update(id, { osWindows = [], chromeTabs = [] }) {
+        const snapshots = await this.load();
+        const target = snapshots.find((snapshot) => snapshot.id === id);
+        if (!target) {
+            throw new Error(`Snapshot ${id} not found.`);
+        }
+
+        target.osWindows = osWindows;
+        target.chromeTabs = chromeTabs;
+        target.updatedAt = new Date().toISOString();
+
+        await this.persist(snapshots);
+        return snapshots;
+    }
+
+    /**
+     * Renames an existing snapshot.
+     * @param {number} id
+     * @param {string} name
+     * @returns {Promise<Array<object>>} The updated snapshot list.
+     */
+    async rename(id, name) {
+        const trimmed = String(name || '')
+            .trim()
+            .slice(0, MAX_NAME_LENGTH);
+        if (!trimmed) {
+            throw new Error('Snapshot name must not be empty.');
+        }
+
+        const snapshots = await this.load();
+        const target = snapshots.find((snapshot) => snapshot.id === id);
+        if (!target) {
+            throw new Error(`Snapshot ${id} not found.`);
+        }
+
+        target.name = trimmed;
         await this.persist(snapshots);
         return snapshots;
     }

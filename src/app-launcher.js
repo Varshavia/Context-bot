@@ -17,16 +17,22 @@ const { exec } = require('child_process');
 
 /**
  * Known applications.
- *   keywords : lowercase substrings matched against the saved window title
+ *   keywords : lowercase terms matched against the saved window title as whole
+ *              words, so "code" matches "Code" and "app.js - Visual Studio
+ *              Code" but never "Xcode"
  *   darwin   : application name for `open -a`
  *   win32    : executable/AppUserModelID for `start`
  *   linux    : binary name on PATH
+ *
+ * Titles differ per platform: Windows reports full window titles ("app.js -
+ * Visual Studio Code") while macOS reports bare process names ("Code"), so
+ * both spellings belong in `keywords`.
  */
 const APP_CATALOG = [
     {
         id: 'vscode',
         label: 'Visual Studio Code',
-        keywords: ['visual studio code', 'vscode'],
+        keywords: ['visual studio code', 'vscode', 'code'],
         darwin: 'Visual Studio Code',
         win32: 'code',
         linux: 'code',
@@ -42,7 +48,7 @@ const APP_CATALOG = [
     {
         id: 'iterm',
         label: 'iTerm',
-        keywords: ['iterm'],
+        keywords: ['iterm', 'iterm2'],
         darwin: 'iTerm',
         win32: null,
         linux: null,
@@ -50,7 +56,7 @@ const APP_CATALOG = [
     {
         id: 'intellij',
         label: 'IntelliJ IDEA',
-        keywords: ['intellij'],
+        keywords: ['intellij', 'idea'],
         darwin: 'IntelliJ IDEA',
         win32: 'idea64',
         linux: 'idea',
@@ -121,6 +127,20 @@ const APP_CATALOG = [
     },
 ];
 
+/** Escapes a keyword for safe use inside a RegExp. */
+function escapeRegExp(text) {
+    return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Whole-word keyword test. Substring matching would make short process names
+ * unusable: "code" would match "Xcode" and "term" would match "Terminal.app
+ * — determinism.md". Word boundaries keep short macOS process names safe.
+ */
+function titleMatches(title, keyword) {
+    return new RegExp(`\\b${escapeRegExp(keyword)}\\b`, 'i').test(title);
+}
+
 /**
  * Maps saved window titles to unique, launchable catalog entries.
  * @param {string[]} windowTitles
@@ -131,12 +151,11 @@ function matchApps(windowTitles) {
 
     for (const title of windowTitles || []) {
         if (typeof title !== 'string') continue;
-        const haystack = title.toLowerCase();
 
         for (const app of APP_CATALOG) {
             if (matched.has(app.id)) continue;
             if (!app[process.platform]) continue; // Not launchable here.
-            if (app.keywords.some((keyword) => haystack.includes(keyword))) {
+            if (app.keywords.some((keyword) => titleMatches(title, keyword))) {
                 matched.set(app.id, app);
             }
         }

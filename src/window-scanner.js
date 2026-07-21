@@ -22,12 +22,21 @@ const IGNORED_TITLE_PATTERNS = ['Google Chrome', 'Context Bot'];
 
 /**
  * Runs a shell command and resolves with its stdout, or '' on failure.
- * Scanning is best-effort: a failure should never crash the app.
+ * Scanning is best-effort: a failure never crashes the app, but it is always
+ * logged — a silent empty list is impossible to diagnose otherwise (the most
+ * common cause on macOS is a missing Automation permission).
  */
 function run(command) {
     return new Promise((resolve) => {
-        exec(command, EXEC_OPTIONS, (err, stdout) => {
-            resolve(err || !stdout ? '' : stdout);
+        exec(command, EXEC_OPTIONS, (err, stdout, stderr) => {
+            if (err) {
+                console.warn(
+                    '[scanner] Scan command failed:',
+                    (stderr || err.message).trim(),
+                );
+                return resolve('');
+            }
+            resolve(stdout || '');
         });
     });
 }
@@ -48,6 +57,14 @@ async function scanMacOsPlatform() {
         `osascript -e 'tell application "System Events" to ` +
         `get name of every process whose visible is true'`;
     const stdout = await run(cmd);
+    if (!stdout) {
+        console.warn(
+            '[scanner] No macOS windows returned. If this persists, grant the ' +
+                'app Automation access for System Events in System Settings > ' +
+                'Privacy & Security > Automation.',
+        );
+        return [];
+    }
     // AppleScript returns a comma-separated list, e.g. "Finder, Safari, Terminal".
     return stdout
         .split(',')
